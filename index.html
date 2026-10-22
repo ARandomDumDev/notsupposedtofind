@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Binary Static Video Generator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        h2 { margin-top: 0; color: #fff; }
+        textarea {
+            width: 100%;
+            height: 120px;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label { font-size: 14px; margin-bottom: 5px; color: #aaa; }
+        input, select {
+            background: #2d2d2d;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        button {
+            width: 100%;
+            background: #0076ff;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+            color: #00ff66;
+        }
+        /* Hidden canvas used for video generation */
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Text to Binary Static Video Generator</h2>
+    
+    <label for="textInput">Enter your text:</label>
+    <textarea id="textInput">Hello World! This text is being converted into binary data and exported as a static video file using a single HTML page.</textarea>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="duration">Duration (seconds):</label>
+            <input type="number" id="duration" value="5" min="1" max="60">
+        </div>
+        <div class="control-group">
+            <label for="colorTheme">Color Theme:</label>
+            <select id="colorTheme">
+                <option value="#00ff66">Matrix Green</option>
+                <option value="#ffffff">Classic White</option>
+                <option value="#0076ff">Cyber Blue</option>
+                <option value="#ff3b30">Warning Red</option>
+            </select>
+        </div>
+    </div>
+
+    <button id="generateBtn" onclick="generateVideo()">Generate & Download Video</button>
+    <div id="status"></div>
+</div>
+
+<!-- Video Canvas Element (Hidden) -->
+<canvas id="videoCanvas" width="1920" height="1080"></canvas>
+
+<script>
+function textToBinary(text) {
+    return text.split('').map(char => {
+        return char.charCodeAt(0).toString(2).padStart(8, '0');
+    }).join(' ');
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+
+    for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = ctx.measureText(testLine);
+        let testWidth = metrics.width;
+        
+        if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, currentY);
+            line = words[n] + ' ';
+            currentY += lineHeight;
+        } else {
+            line = testLine;
+        }
+    }
+    ctx.fillText(line, x, currentY);
+}
+
+function generateVideo() {
+    const text = document.getElementById('textInput').value;
+    const duration = parseInt(document.getElementById('duration').value) || 5;
+    const textColor = document.getElementById('colorTheme').value;
+    const button = document.getElementById('generateBtn');
+    const status = document.getElementById('status');
+
+    if (!text.trim()) {
+        alert("Please enter some text first!");
+        return;
+    }
+
+    button.disabled = true;
+    status.innerText = "Encoding frame data...";
+
+    // 1. Setup Canvas Context
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Draw pure black background
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Convert text and render layout
+    const binaryString = textToBinary(text);
+    ctx.fillStyle = textColor;
+    ctx.font = "bold 24px monospace";
+    
+    // Draw wrapped text inside canvas dimensions with padding margins
+    wrapText(ctx, binaryString, 50, 70, canvas.width - 100, 36);
+
+    // 2. Capture Canvas Stream to video
+    const fps = 30;
+    const stream = canvas.captureStream(fps);
+    
+    // Use standard MP4/H.264 container context if supported, fallback to VP9 webm if needed
+    let options = { mimeType: 'video/mp4; codecs=avc1.42E01F' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm; codecs=vp9' };
+    }
+
+    const mediaRecorder = new MediaRecorder(stream, options);
+    const chunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+        status.innerText = "Processing complete! Downloading...";
+        const blob = new Blob(chunks, { type: options.mimeType });
+        const url = URL.createObjectURL(blob);
+        
+        // Trigger file download framework natively 
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = options.mimeType.includes('mp4') ? 'binary_video.mp4' : 'binary_video.webm';
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup memory overheads
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            button.disabled = false;
+            status.innerText = "";
+        }, 100);
+    };
+
+    // 3. Run recorder clock loop matching video target duration parameters
+    mediaRecorder.start();
+    
+    let framesRendered = 0;
+    const totalFrames = duration * fps;
+    const interval = setInterval(() => {
+        // Redraw single static frame buffer content loops to keep recording stream active
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = textColor;
+        wrapText(ctx, binaryString, 50, 70, canvas.width - 100, 36);
+        
+        framesRendered++;
+        status.innerText = `Generating Video: ${Math.round((framesRendered / totalFrames) * 100)}%`;
+        
+        if (framesRendered >= totalFrames) {
+            clearInterval(interval);
+            mediaRecorder.stop();
+        }
+    }, 1000 / fps);
+}
+</script>
+
+</body>
+</html>
