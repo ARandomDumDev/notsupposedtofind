@@ -1,236 +1,836 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text to Binary Static Video Generator</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .container {
-            max-width: 800px;
-            width: 100%;
-            background: #1e1e1e;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        }
-        h2 { margin-top: 0; color: #fff; }
-        textarea {
-            width: 100%;
-            height: 120px;
-            background: #2d2d2d;
-            border: 1px solid #444;
-            color: #fff;
-            border-radius: 6px;
-            padding: 10px;
-            font-size: 16px;
-            box-sizing: border-box;
-            resize: vertical;
-        }
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-        .control-group {
-            display: flex;
-            flex-direction: column;
-        }
-        label { font-size: 14px; margin-bottom: 5px; color: #aaa; }
-        input, select {
-            background: #2d2d2d;
-            border: 1px solid #444;
-            color: #fff;
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        button {
-            width: 100%;
-            background: #0076ff;
-            color: white;
-            border: none;
-            padding: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #444; cursor: not-allowed; }
-        #status {
-            margin-top: 15px;
-            font-weight: bold;
-            text-align: center;
-            color: #00ff66;
-        }
-        /* Hidden canvas used for video generation */
-        canvas {
-            display: none;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#05070b">
+<title>Binary Waterfall</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #05070b;
+  --panel: #0b1018;
+  --border: #1b2935;
+  --text: #dce9f3;
+  --muted: #728698;
+  --cyan: #35e8dc;
+  --green: #76ff9b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+button, input, select { font: inherit; }
+button, select, .file-button {
+  color: var(--text);
+  background: #101923;
+  border: 1px solid #263947;
+  border-radius: 5px;
+  padding: 9px 12px;
+}
+button { cursor: pointer; }
+button:hover, .file-button:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+button:disabled { opacity: .4; cursor: not-allowed; }
+button.active {
+  background: #10332f;
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+input[type="range"] { width: 100%; accent-color: var(--cyan); }
+input[type="checkbox"] { accent-color: var(--cyan); }
+select { max-width: 100%; }
+header {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px clamp(16px, 4vw, 48px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  color: var(--cyan);
+  border: 1px solid #28514e;
+  background: #0b211f;
+  font-size: 20px;
+}
+h1 { margin: 0; font-size: 17px; letter-spacing: 1px; }
+.subtitle { color: var(--muted); font-size: 11px; }
+.status { color: var(--green); font-size: 11px; }
+main {
+  width: min(1500px, 100%);
+  margin: auto;
+  padding: 22px clamp(12px, 3vw, 36px) 36px;
+}
+.toolbar {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 9px; margin-bottom: 16px;
+}
+.file-button { display: inline-block; cursor: pointer; }
+.file-button input { display: none; }
+.file-name {
+  color: var(--muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  flex: 1;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.stat, .panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.stat { padding: 12px 14px; min-width: 0; }
+.stat-label, .label {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.stat-value {
+  font-size: clamp(14px, 2vw, 21px);
+  overflow-wrap: anywhere;
+}
+.panel { margin-bottom: 16px; overflow: hidden; }
+.panel-heading {
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 8px;
+}
+.panel-heading strong { font-size: 11px; letter-spacing: 1px; }
+.panel-heading span { color: var(--muted); font-size: 10px; }
+#waterfall {
+  display: block; width: 100%; height: 390px;
+  background: #030509;
+}
+.visual-footer {
+  padding: 9px 14px;
+  display: flex; flex-wrap: wrap; gap: 16px;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 10px;
+}
+.legend { display: flex; align-items: center; gap: 5px; }
+.legend i { display: inline-block; width: 8px; height: 8px; }
+.controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px; padding: 16px;
+}
+.control { min-width: 0; }
+.control select { width: 100%; }
+.control-value { color: var(--cyan); float: right; }
+.toggle-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; color: var(--muted);
+}
+.actions {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 0 16px 16px;
+}
+#progress {
+  height: 3px; background: #111c25;
+}
+#progressFill {
+  height: 100%; width: 0%;
+  background: var(--cyan);
+  transition: width .08s linear;
+}
+.data-layout {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.data-layout .panel { margin-bottom: 16px; }
+#hexView, #asciiView {
+  padding: 13px;
+  height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1.9;
+}
+#asciiView { color: #9ac9e8; }
+.histogram {
+  display: grid;
+  grid-template-columns: repeat(64, minmax(0, 1fr));
+  height: 100px; align-items: end;
+  gap: 2px; padding: 12px;
+}
+.histogram span {
+  display: block; min-height: 1px;
+  background: #258c85;
+}
+.note {
+  color: var(--muted); font-size: 11px;
+  padding: 12px 15px; line-height: 1.8;
+}
+footer {
+  border-top: 1px solid var(--border);
+  padding: 18px;
+  text-align: center;
+  color: #506272;
+  font-size: 10px;
+}
+@media (max-width: 700px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .data-layout { grid-template-columns: 1fr; gap: 0; }
+  #waterfall { height: 310px; }
+  header { align-items: flex-start; }
+}
+@media (max-width: 390px) {
+  .controls { grid-template-columns: 1fr; }
+}
+</style>
 </head>
 <body>
-
-<div class="container">
-    <h2>Text to Binary Static Video Generator</h2>
-    
-    <label for="textInput">Enter your text:</label>
-    <textarea id="textInput">Hello World! This text is being converted into binary data and exported as a static video file using a single HTML page.</textarea>
-    
-    <div class="controls">
-        <div class="control-group">
-            <label for="duration">Duration (seconds):</label>
-            <input type="number" id="duration" value="5" min="1" max="60">
-        </div>
-        <div class="control-group">
-            <label for="colorTheme">Color Theme:</label>
-            <select id="colorTheme">
-                <option value="#00ff66">Matrix Green</option>
-                <option value="#ffffff">Classic White</option>
-                <option value="#0076ff">Cyber Blue</option>
-                <option value="#ff3b30">Warning Red</option>
-            </select>
-        </div>
+<header>
+  <div class="brand">
+    <div class="logo">⌁</div>
+    <div>
+      <h1>BINARY WATERFALL</h1>
+      <div class="subtitle">RAW DATA VISUALIZATION & SONIFICATION ENGINE</div>
     </div>
+  </div>
+  <div class="status" id="status">● STANDBY</div>
+</header>
 
-    <button id="generateBtn" onclick="generateVideo()">Generate & Download Video</button>
-    <div id="status"></div>
-</div>
+<main>
+  <div class="toolbar">
+    <label class="file-button">
+      LOAD FILE
+      <input type="file" id="fileInput">
+    </label>
+    <button id="demoBtn">LOAD DEMO</button>
+    <button id="pauseVisual">PAUSE VISUAL</button>
+    <span class="file-name" id="fileName">No file loaded</span>
+  </div>
 
-<!-- Video Canvas Element (Hidden) -->
-<canvas id="videoCanvas" width="1920" height="1080"></canvas>
+  <section class="stats">
+    <div class="stat">
+      <div class="stat-label">File size</div>
+      <div class="stat-value" id="sizeStat">0 B</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total bytes</div>
+      <div class="stat-value" id="byteStat">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Entropy estimate</div>
+      <div class="stat-value" id="entropyStat">0.000 bits</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Unique values</div>
+      <div class="stat-value" id="uniqueStat">0 / 256</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <strong>01 / BYTE-STREAM WATERFALL</strong>
+      <span id="position">OFFSET 0x00000000</span>
+    </div>
+    <canvas id="waterfall"></canvas>
+    <div class="visual-footer">
+      <span id="visualInfo">Awaiting raw byte stream</span>
+      <div class="legend">
+        <i style="background:#1649a0"></i> LOW
+        <i style="background:#28d9c8"></i> MID
+        <i style="background:#f4df6b"></i> HIGH
+        <i style="background:#ff554f"></i> PEAK
+      </div>
+    </div>
+    <div id="progress"><div id="progressFill"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <strong>02 / RENDERING PARAMETERS</strong>
+      <span>LIVE CONFIGURATION</span>
+    </div>
+    <div class="controls">
+      <div class="control">
+        <label class="label" for="encoding">Byte encoding</label>
+        <select id="encoding">
+          <option value="hex">Hexadecimal (00-FF)</option>
+          <option value="ascii">ASCII characters</option>
+          <option value="binary">Binary (8-bit)</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="label" for="colorMode">Color mapping</label>
+        <select id="colorMode">
+          <option value="spectrum">Byte spectrum</option>
+          <option value="thermal">Thermal</option>
+          <option value="green">Digital green</option>
+          <option value="monochrome">Monochrome</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="label" for="zoom">Data density <span class="control-value" id="zoomValue">4 px</span></label>
+        <input id="zoom" type="range" min="2" max="12" value="4">
+      </div>
+      <div class="control">
+        <label class="label" for="speed">Scroll speed <span class="control-value" id="speedValue">3</span></label>
+        <input id="speed" type="range" min="1" max="10" value="3">
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <strong>03 / BYTE DISTRIBUTION</strong>
+      <span>256 POSSIBLE VALUES</span>
+    </div>
+    <div class="histogram" id="histogram"></div>
+    <div class="visual-footer">
+      <span>Frequency distribution, grouped into 64 bins</span>
+      <span id="distributionInfo">NO DATA</span>
+    </div>
+  </section>
+
+  <div class="data-layout">
+    <section class="panel">
+      <div class="panel-heading">
+        <strong>04 / HEXADECIMAL INSPECTOR</strong>
+        <span>FIRST 512 BYTES</span>
+      </div>
+      <div id="hexView">No data loaded.</div>
+    </section>
+    <section class="panel">
+      <div class="panel-heading">
+        <strong>05 / ASCII INSPECTOR</strong>
+        <span>NON-PRINTABLE BYTES SHOWN AS DOTS</span>
+      </div>
+      <div id="asciiView">No data loaded.</div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <strong>06 / AUDIO SONIFICATION</strong>
+      <span id="audioStatus">AUDIO ENGINE IDLE</span>
+    </div>
+    <div class="controls">
+      <div class="control">
+        <label class="label" for="sampleRate">Sample rate</label>
+        <select id="sampleRate">
+          <option value="1000">1,000 Hz</option>
+          <option value="4000">4,000 Hz</option>
+          <option value="8000">8,000 Hz</option>
+          <option value="11025">11,025 Hz</option>
+          <option value="22050">22,050 Hz</option>
+          <option value="44100" selected>44,100 Hz</option>
+          <option value="48000">48,000 Hz</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="label" for="bitDepth">Sample interpretation</label>
+        <select id="bitDepth">
+          <option value="u8">8-bit unsigned PCM</option>
+          <option value="s16">16-bit signed PCM (LE)</option>
+          <option value="f32">32-bit float (LE)</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="label" for="channels">Channels</label>
+        <select id="channels">
+          <option value="1">Mono</option>
+          <option value="2" selected>Stereo</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="label" for="volume">Output gain <span class="control-value" id="volumeValue">25%</span></label>
+        <input id="volume" type="range" min="0" max="100" value="25">
+        <label class="toggle-row">
+          <input type="checkbox" id="normalize" checked>
+          Normalize audio
+        </label>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="playAudio" disabled>▶ PLAY RAW AUDIO</button>
+      <button id="stopAudio" disabled>■ STOP</button>
+      <button id="playMidi" disabled>♫ BYTE-TO-TONE MODE</button>
+    </div>
+    <div class="note">
+      Raw bytes are interpreted directly as audio samples, not decoded according to the file format.
+      16-bit PCM uses little-endian signed samples. Float mode uses little-endian IEEE 754 values.
+      Stereo interprets consecutive samples as alternating left/right channels.
+      Invalid float samples are silenced. Playback is capped at 60 seconds to limit memory usage.
+      Loudness can vary significantly between files, so keep the volume low when testing.
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <strong>07 / ENGINE INFORMATION</strong>
+      <span>CLIENT-SIDE PROCESSING</span>
+    </div>
+    <div class="note" id="engineInfo">
+      The engine reads file bytes without decoding the original format. Visualization and audio output
+      are independent interpretations of the same data stream.
+    </div>
+  </section>
+</main>
+
+<footer>
+  BINARY WATERFALL · RAW BYTES IN · VISUAL AND AUDIO OUTPUTS OUT · NO SERVER REQUIRED
+</footer>
 
 <script>
-function textToBinary(text) {
-    return text.split('').map(char => {
-        return char.charCodeAt(0).toString(2).padStart(8, '0');
-    }).join(' ');
-}
+(() => {
+  "use strict";
 
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' ');
-    let line = '';
-    let currentY = y;
+  const $ = id => document.getElementById(id);
+  const canvas = $("waterfall");
+  const ctx = canvas.getContext("2d", { alpha: false });
 
-    for (let n = 0; n < words.length; n++) {
-        let testLine = line + words[n] + ' ';
-        let metrics = ctx.measureText(testLine);
-        let testWidth = metrics.width;
-        
-        if (testWidth > maxWidth && n > 0) {
-            ctx.fillText(line, x, currentY);
-            line = words[n] + ' ';
-            currentY += lineHeight;
-        } else {
-            line = testLine;
+  let bytes = new Uint8Array(0);
+  let fileLabel = "";
+  let frame = 0;
+  let offset = 0;
+  let paused = false;
+  let animationId = 0;
+  let audioContext = null;
+  let audioSource = null;
+  let audioGain = null;
+  let histogram = new Uint32Array(256);
+  let lastWidth = 0;
+  let lastHeight = 0;
+
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+  function formatSize(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(2) + " KB";
+    if (n < 1024 ** 3) return (n / 1024 ** 2).toFixed(2) + " MB";
+    return (n / 1024 ** 3).toFixed(2) + " GB";
+  }
+
+  function setStatus(text) {
+    $("status").textContent = "● " + text;
+  }
+
+  function byteColor(value, mode) {
+    const v = value / 255;
+    if (mode === "green") {
+      return `rgb(${Math.round(v * 40)},${Math.round(70 + v * 185)},${Math.round(v * 90)})`;
+    }
+    if (mode === "monochrome") {
+      const c = Math.round(30 + v * 225);
+      return `rgb(${c},${c},${c})`;
+    }
+    if (mode === "thermal") {
+      if (v < .33) {
+        return `rgb(${Math.round(v * 3 * 40)},${Math.round(v * 3 * 80)},${Math.round(100 + v * 3 * 100)})`;
+      }
+      if (v < .66) {
+        const t = (v - .33) * 3;
+        return `rgb(${Math.round(t * 255)},${Math.round(80 + t * 120)},${Math.round(200 - t * 190)})`;
+      }
+      const t = (v - .66) * 3;
+      return `rgb(255,${Math.round(200 - t * 170)},${Math.round(10 + t * 25)})`;
+    }
+    const hue = 220 - v * 220;
+    return `hsl(${hue},${Math.round(65 + v * 25)}%,${Math.round(20 + v * 55)}%)`;
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.floor(rect.width * dpr));
+    const h = Math.max(1, Math.floor(rect.height * dpr));
+
+    if (w !== canvas.width || h !== canvas.height) {
+      canvas.width = w;
+      canvas.height = h;
+      lastWidth = w;
+      lastHeight = h;
+      ctx.fillStyle = "#030509";
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  function drawWaterfall() {
+    resizeCanvas();
+    const w = canvas.width;
+    const h = canvas.height;
+    const cell = Number($("zoom").value) *
+      Math.min(window.devicePixelRatio || 1, 2);
+    const columns = Math.max(1, Math.floor(w / cell));
+    const rows = Math.max(1, Math.floor(h / cell));
+    const mode = $("colorMode").value;
+    const encoding = $("encoding").value;
+    const speed = Number($("speed").value);
+
+    if (!paused && bytes.length) {
+      for (let r = 0; r < speed; r++) {
+        const y = (frame + r) % rows;
+        for (let x = 0; x < columns; x++) {
+          const index = (offset + x + y * columns) % bytes.length;
+          const b = bytes[index];
+          ctx.fillStyle = byteColor(b, mode);
+          ctx.fillRect(x * cell, y * cell, cell - 1, cell - 1);
+
+          if (cell >= 7 && encoding !== "binary") {
+            ctx.fillStyle = b > 190 ? "#ffffff" : "#06100f";
+            ctx.font = `${Math.max(7, cell * .72)}px monospace`;
+            ctx.fillText(
+              encoding === "hex"
+                ? b.toString(16).padStart(2, "0").toUpperCase()
+                : (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."),
+              x * cell + 1,
+              y * cell + cell * .78
+            );
+          }
         }
-    }
-    ctx.fillText(line, x, currentY);
-}
-
-function generateVideo() {
-    const text = document.getElementById('textInput').value;
-    const duration = parseInt(document.getElementById('duration').value) || 5;
-    const textColor = document.getElementById('colorTheme').value;
-    const button = document.getElementById('generateBtn');
-    const status = document.getElementById('status');
-
-    if (!text.trim()) {
-        alert("Please enter some text first!");
-        return;
-    }
-
-    button.disabled = true;
-    status.innerText = "Encoding frame data...";
-
-    // 1. Setup Canvas Context
-    const canvas = document.getElementById('videoCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Draw pure black background
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Convert text and render layout
-    const binaryString = textToBinary(text);
-    ctx.fillStyle = textColor;
-    ctx.font = "bold 24px monospace";
-    
-    // Draw wrapped text inside canvas dimensions with padding margins
-    wrapText(ctx, binaryString, 50, 70, canvas.width - 100, 36);
-
-    // 2. Capture Canvas Stream to video
-    const fps = 30;
-    const stream = canvas.captureStream(fps);
-    
-    // Use standard MP4/H.264 container context if supported, fallback to VP9 webm if needed
-    let options = { mimeType: 'video/mp4; codecs=avc1.42E01F' };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm; codecs=vp9' };
+      }
+      frame += speed;
+      offset = (offset + columns * speed) % bytes.length;
+      $("position").textContent =
+        "OFFSET 0x" + offset.toString(16).toUpperCase().padStart(8, "0");
+      $("progressFill").style.width = (offset / bytes.length * 100) + "%";
+    } else if (!bytes.length) {
+      ctx.fillStyle = "#030509";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#304552";
+      ctx.font = "13px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("LOAD A FILE TO BEGIN", w / 2, h / 2);
+      ctx.textAlign = "left";
     }
 
-    const mediaRecorder = new MediaRecorder(stream, options);
-    const chunks = [];
+    animationId = requestAnimationFrame(drawWaterfall);
+  }
 
-    mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-    };
+  function stopAudio() {
+    if (audioSource) {
+      try { audioSource.stop(); } catch (_) {}
+      try { audioSource.disconnect(); } catch (_) {}
+      audioSource = null;
+    }
+    $("stopAudio").disabled = true;
+    $("playAudio").disabled = bytes.length === 0;
+    $("playMidi").disabled = bytes.length === 0;
+    $("audioStatus").textContent = "AUDIO ENGINE IDLE";
+  }
 
-    mediaRecorder.onstop = () => {
-        status.innerText = "Processing complete! Downloading...";
-        const blob = new Blob(chunks, { type: options.mimeType });
-        const url = URL.createObjectURL(blob);
-        
-        // Trigger file download framework natively 
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = options.mimeType.includes('mp4') ? 'binary_video.mp4' : 'binary_video.webm';
-        document.body.appendChild(a);
-        a.click();
-        
-        // Cleanup memory overheads
-        setTimeout(() => {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            button.disabled = false;
-            status.innerText = "";
-        }, 100);
-    };
+  function updateStatistics() {
+    histogram = new Uint32Array(256);
+    for (const b of bytes) histogram[b]++;
 
-    // 3. Run recorder clock loop matching video target duration parameters
-    mediaRecorder.start();
-    
-    let framesRendered = 0;
-    const totalFrames = duration * fps;
-    const interval = setInterval(() => {
-        // Redraw single static frame buffer content loops to keep recording stream active
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = textColor;
-        wrapText(ctx, binaryString, 50, 70, canvas.width - 100, 36);
-        
-        framesRendered++;
-        status.innerText = `Generating Video: ${Math.round((framesRendered / totalFrames) * 100)}%`;
-        
-        if (framesRendered >= totalFrames) {
-            clearInterval(interval);
-            mediaRecorder.stop();
+    let entropy = 0;
+    let unique = 0;
+    for (const count of histogram) {
+      if (count > 0) {
+        unique++;
+        const p = count / Math.max(1, bytes.length);
+        entropy -= p * Math.log2(p);
+      }
+    }
+
+    $("sizeStat").textContent = formatSize(bytes.length);
+    $("byteStat").textContent = bytes.length.toLocaleString();
+    $("entropyStat").textContent = entropy.toFixed(3) + " bits";
+    $("uniqueStat").textContent = unique + " / 256";
+    $("distributionInfo").textContent =
+      unique + " unique values · " + (entropy / 8 * 100).toFixed(1) + "% of maximum entropy";
+
+    const histogramElement = $("histogram");
+    histogramElement.replaceChildren();
+    const maxCount = Math.max(1, ...Array.from(histogram));
+
+    for (let i = 0; i < 64; i++) {
+      let count = 0;
+      for (let j = 0; j < 4; j++) count += histogram[i * 4 + j];
+
+      const bar = document.createElement("span");
+      bar.style.height = Math.max(1, count / maxCount * 100) + "%";
+      bar.title = `Bytes ${i * 4}-${i * 4 + 3}: ${count}`;
+      histogramElement.appendChild(bar);
+    }
+
+    const sample = bytes.subarray(0, 512);
+    const hex = [];
+    const ascii = [];
+
+    for (let i = 0; i < sample.length; i += 16) {
+      const chunk = sample.subarray(i, i + 16);
+      hex.push(
+        i.toString(16).padStart(8, "0").toUpperCase() + "  " +
+        Array.from(chunk, b => b.toString(16).padStart(2, "0").toUpperCase())
+          .join(" ").padEnd(47, " ") +
+        "  " +
+        Array.from(chunk, b => b >= 32 && b <= 126 ? String.fromCharCode(b) : ".").join("")
+      );
+      ascii.push(
+        i.toString(16).padStart(8, "0").toUpperCase() + "  " +
+        Array.from(chunk, b => b >= 32 && b <= 126 ? String.fromCharCode(b) : ".").join("")
+      );
+    }
+
+    $("hexView").textContent = hex.join("\n") || "No data loaded.";
+    $("asciiView").textContent = ascii.join("\n") || "No data loaded.";
+    $("visualInfo").textContent =
+      bytes.length ? `${formatSize(bytes.length)} · ${unique} distinct byte values` : "Awaiting raw byte stream";
+
+    $("playAudio").disabled = bytes.length === 0;
+    $("playMidi").disabled = bytes.length === 0;
+    $("engineInfo").textContent = bytes.length
+      ? `Loaded "${fileLabel}". ${bytes.length.toLocaleString()} bytes available. Shannon entropy: ${entropy.toFixed(4)} bits per byte. This is a statistical estimate, not a file-format detector.`
+      : "The engine reads file bytes without decoding the original format.";
+  }
+
+  async function loadFile(file) {
+    if (!file) return;
+    stopAudio();
+    setStatus("READING FILE");
+
+    try {
+      bytes = new Uint8Array(await file.arrayBuffer());
+      fileLabel = file.name;
+      $("fileName").textContent = `${file.name} · ${formatSize(file.size)}`;
+      frame = 0;
+      offset = 0;
+      paused = false;
+      $("pauseVisual").textContent = "PAUSE VISUAL";
+      $("progressFill").style.width = "0%";
+      updateStatistics();
+      setStatus("FILE LOADED");
+    } catch (err) {
+      setStatus("FILE READ ERROR");
+      console.error(err);
+    }
+  }
+
+  $("fileInput").addEventListener("change", e => loadFile(e.target.files[0]));
+
+  $("demoBtn").addEventListener("click", () => {
+    const length = 24000;
+    bytes = new Uint8Array(length);
+    let seed = 0x12345678;
+    for (let i = 0; i < length; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      const zone = Math.floor(i / 3000) % 4;
+      if (zone === 0) bytes[i] = i % 16 < 8 ? 0 : 255;
+      else if (zone === 1) bytes[i] = (i * 7) & 255;
+      else if (zone === 2) bytes[i] = 32 + (seed % 95);
+      else bytes[i] = seed >>> 24;
+    }
+    fileLabel = "synthetic-demo.bin";
+    $("fileName").textContent = "synthetic-demo.bin · generated test data";
+    frame = 0;
+    offset = 0;
+    paused = false;
+    $("pauseVisual").textContent = "PAUSE VISUAL";
+    updateStatistics();
+    setStatus("DEMO LOADED");
+  });
+
+  $("pauseVisual").addEventListener("click", () => {
+    paused = !paused;
+    $("pauseVisual").textContent = paused ? "RESUME VISUAL" : "PAUSE VISUAL";
+  });
+
+  $("zoom").addEventListener("input", () => {
+    $("zoomValue").textContent = $("zoom").value + " px";
+  });
+  $("speed").addEventListener("input", () => {
+    $("speedValue").textContent = $("speed").value;
+  });
+  $("volume").addEventListener("input", () => {
+    $("volumeValue").textContent = $("volume").value + "%";
+    if (audioGain && audioContext) {
+      audioGain.gain.setTargetAtTime(
+        Number($("volume").value) / 100,
+        audioContext.currentTime,
+        .015
+      );
+    }
+  });
+
+  $("encoding").addEventListener("change", () => {
+    // Encoding affects the text overlay when the visualizer redraws.
+    frame = 0;
+  });
+
+  async function getAudioContext() {
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error("Web Audio API is not supported.");
+      audioContext = new AudioContextClass();
+    }
+    if (audioContext.state === "suspended") await audioContext.resume();
+    return audioContext;
+  }
+
+  function createPCMBuffer(ac) {
+    const rate = Number($("sampleRate").value);
+    const channelCount = Number($("channels").value);
+    const format = $("bitDepth").value;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const bytesPerSample = format === "u8" ? 1 : format === "s16" ? 2 : 4;
+    const availableSamples = Math.floor(bytes.length / bytesPerSample);
+    const maxSamples = rate * 60 * channelCount;
+    const sampleCount = Math.min(availableSamples, maxSamples);
+    const frames = Math.floor(sampleCount / channelCount);
+
+    if (frames < 1) throw new Error("The file is too small for this sample format.");
+
+    const buffer = ac.createBuffer(channelCount, frames, rate);
+    const channels = Array.from({ length: channelCount }, (_, i) => buffer.getChannelData(i));
+    const normalize = $("normalize").checked;
+    let peak = 0;
+
+    function readSample(index) {
+      const pos = index * bytesPerSample;
+      if (format === "u8") return (view.getUint8(pos) - 128) / 128;
+      if (format === "s16") return view.getInt16(pos, true) / 32768;
+      const f = view.getFloat32(pos, true);
+      return Number.isFinite(f) ? clamp(f, -1, 1) : 0;
+    }
+
+    for (let i = 0; i < frames; i++) {
+      for (let c = 0; c < channelCount; c++) {
+        const value = readSample(i * channelCount + c);
+        channels[c][i] = value;
+        peak = Math.max(peak, Math.abs(value));
+      }
+    }
+
+    if (normalize && peak > 0) {
+      const gain = 0.9 / peak;
+      for (const channel of channels) {
+        for (let i = 0; i < channel.length; i++) {
+          channel[i] = clamp(channel[i] * gain, -1, 1);
         }
-    }, 1000 / fps);
-}
+      }
+    }
+
+    return { buffer, frames, rate, channelCount, peak, format };
+  }
+
+  async function playRawAudio() {
+    if (!bytes.length) return;
+    stopAudio();
+
+    try {
+      const ac = await getAudioContext();
+      const result = createPCMBuffer(ac);
+      audioSource = ac.createBufferSource();
+      audioSource.buffer = result.buffer;
+      audioGain = ac.createGain();
+      audioGain.gain.value = Number($("volume").value) / 100;
+      audioSource.connect(audioGain);
+      audioGain.connect(ac.destination);
+
+      audioSource.onended = () => {
+        if (audioSource) {
+          audioSource.disconnect();
+          audioSource = null;
+        }
+        $("stopAudio").disabled = true;
+        $("playAudio").disabled = false;
+        $("playMidi").disabled = false;
+        $("audioStatus").textContent = "PLAYBACK COMPLETE";
+      };
+
+      audioSource.start();
+      $("stopAudio").disabled = false;
+      $("playAudio").disabled = true;
+      $("playMidi").disabled = true;
+      $("audioStatus").textContent =
+        `${result.rate.toLocaleString()} HZ · ${result.channelCount} CH · ${result.format.toUpperCase()} · ${(result.frames / result.rate).toFixed(2)} SEC`;
+    } catch (err) {
+      $("audioStatus").textContent = err.message;
+      console.error(err);
+    }
+  }
+
+  async function playToneMode() {
+    if (!bytes.length) return;
+    stopAudio();
+
+    try {
+      const ac = await getAudioContext();
+      const rate = Number($("sampleRate").value);
+      const maxNotes = Math.min(bytes.length, 3000);
+      const duration = Math.min(12, maxNotes * .012);
+      const buffer = ac.createBuffer(1, Math.max(1, Math.floor(duration * rate)), rate);
+      const data = buffer.getChannelData(0);
+      const noteDuration = data.length / maxNotes;
+
+      for (let i = 0; i < data.length; i++) {
+        const noteIndex = Math.min(maxNotes - 1, Math.floor(i / noteDuration));
+        const value = bytes[noteIndex] || 0;
+        const frequency = 110 * Math.pow(2, value / 255 * 4);
+        const t = (i % Math.max(1, Math.floor(noteDuration))) / rate;
+        data[i] = Math.sin(2 * Math.PI * frequency * t) * 0.35;
+      }
+
+      audioSource = ac.createBufferSource();
+      audioSource.buffer = buffer;
+      audioGain = ac.createGain();
+      audioGain.gain.value = Number($("volume").value) / 100;
+      audioSource.connect(audioGain);
+      audioGain.connect(ac.destination);
+
+      audioSource.onended = () => {
+        if (audioSource) {
+          audioSource.disconnect();
+          audioSource = null;
+        }
+        $("stopAudio").disabled = true;
+        $("playAudio").disabled = false;
+        $("playMidi").disabled = false;
+        $("audioStatus").textContent = "TONE SEQUENCE COMPLETE";
+      };
+
+      audioSource.start();
+      $("stopAudio").disabled = false;
+      $("playAudio").disabled = true;
+      $("playMidi").disabled = true;
+      $("audioStatus").textContent = "BYTE-TO-FREQUENCY MODE · " + duration.toFixed(2) + " SEC";
+    } catch (err) {
+      $("audioStatus").textContent = err.message;
+      console.error(err);
+    }
+  }
+
+  $("playAudio").addEventListener("click", playRawAudio);
+  $("playMidi").addEventListener("click", playToneMode);
+  $("stopAudio").addEventListener("click", stopAudio);
+
+  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("beforeunload", () => {
+    cancelAnimationFrame(animationId);
+    if (audioContext) audioContext.close();
+  });
+
+  updateStatistics();
+  drawWaterfall();
+})();
 </script>
-
 </body>
 </html>
